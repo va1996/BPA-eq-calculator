@@ -592,7 +592,7 @@ BPS,3.2e-9,M</pre>
       <details style="margin-top:18px;">
         <summary>Methods & assumptions</summary>
         <div class="details-body" style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">
-          <p style="margin-bottom:8px;"><strong>Endpoints:</strong> ERα activation (estrogen receptor α reporter assay, specific endpoint); MMP (mitochondrial membrane potential disruption, mitotoxicity); IC₁₀ baseline (cytotoxicity / general cell viability).</p>
+          <p style="margin-bottom:8px;"><strong>Endpoints:</strong> ERα activation (estrogen receptor α reporter assay, specific endpoint); MMP (mitochondrial membrane potential disruption, mitotoxicity); IC₁₀ (cytotoxicity / general cell viability).</p>
           <p style="margin-bottom:8px;"><strong>Calculation:</strong> Exposure concentrations in any unit are first converted to molar (M) using each substance's molecular weight. The relative effect potency REP<sub>i</sub> = EC₁₀<sub>BPA</sub> / EC₁₀<sub>i</sub> is dimensionless. BEQ<sub>i</sub> = c<sub>i</sub>(molar) × REP<sub>i</sub>, expressed in molar BPA-equivalents, then multiplied by MW<sub>BPA</sub> (228.291 g/mol) to give ng BPA-eq/L.</p>
           <p style="margin-bottom:8px;"><strong>Concentration addition</strong> is the underlying assumption — substances are assumed to act via the same mode of action within each endpoint. For endpoints where this assumption is weaker (e.g. cytotoxicity), interpret BEQ as a screening estimate.</p>
           <p><strong>Missing values</strong> mean no EC₁₀ could be derived in the tested concentration range for that assay. Such substances are dropped from the BEQ sum for that endpoint, with a warning shown in the results.</p>
@@ -690,7 +690,7 @@ BPS,3.2e-9,M</pre>
   const ENDPOINTS = [
     { key: 'era',  label: 'ERα',          full: 'estrogen receptor α',              color: 'var(--era-color)' },
     { key: 'mmp',  label: 'MMP',          full: 'mitochondrial membrane potential', color: 'var(--mmp-color)' },
-    { key: 'cyto', label: 'Cytotoxicity', full: 'IC₁₀ baseline',                    color: 'var(--cyto-color)' }
+    { key: 'cyto', label: 'Cytotoxicity', full: 'IC₁₀',                    color: 'var(--cyto-color)' }
   ];
 
   // 27 soft, distinguishable colors
