@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPA-EQ Calculator — Bisphenol Mixture Toxicity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    /* Cool neutral palette with petrol as primary accent */
+    --bg: #F2F2EE;
+    --bg-elevated: #FFFFFF;
+    --bg-subtle: #E6E8E5;
+    --border: #D2D5D0;
+    --border-soft: #E0E3DE;
+    --text: #1F2421;
+    --text-muted: #5E6863;
+    --text-subtle: #94A09A;
+
+    /* Petrol — primary brand accent */
+    --brand: #1F6F6B;
+    --brand-soft: #BCD3D0;
+    --brand-dark: #155956;
+
+    /* Saturated endpoint colors */
+    --era-color: #6A3D9A;
+    --era-soft: #D6C5E5;
+    --mmp-color: #D17B30;
+    --mmp-soft: #F3D5B9;
+    --cyto-color: #1F6F6B;
+    --cyto-soft: #BCD3D0;
+
+    --shadow-soft: 0 1px 2px rgba(30, 40, 35, 0.04);
+    --shadow-card: 0 1px 3px rgba(30, 40, 35, 0.05), 0 8px 24px rgba(30, 40, 35, 0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    font-weight: 400;
+    min-height: 100vh;
+    padding: 32px 20px 80px;
+  }
+  .container { max-width: 1180px; margin: 0 auto; }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .title-block h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 2.4rem;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  .title-block h1 em { font-style: italic; color: var(--brand); }
+  .title-block .subtitle {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    max-width: 600px;
+  }
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text-subtle);
+    text-align: right;
+  }
+  .meta .version { color: var(--text-muted); }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 12px 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab .num { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--text-subtle); }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--brand); }
+  .tab.active .num { color: var(--brand); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px 28px;
+    box-shadow: var(--shadow-soft);
+  }
+  .card + .card { margin-top: 20px; }
+  .card-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+    letter-spacing: -0.005em;
+  }
+  .card-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .mixture-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+  .mixture-table th {
+    text-align: left;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mixture-table td {
+    padding: 8px 6px 8px 0;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: middle;
+  }
+  .mixture-table td:first-child { width: 42%; padding-left: 0; }
+  .mixture-table td.conc-cell { width: 22%; }
+  .mixture-table td.unit-cell { width: 14%; }
+  .mixture-table td.molar-cell { width: 16%; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--text-muted); text-align: right; padding-right: 8px;}
+  .mixture-table td.remove-cell { width: 6%; text-align: right; }
+
+  select, input[type="number"], input[type="text"] {
+    font-family: inherit;
+    font-size: 0.92rem;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--brand); }
+  input[type="number"] { font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; }
+
+  .substance-cell { display: flex; align-items: center; gap: 10px; }
+  .swatch {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--text-subtle);
+  }
+  .remove-btn {
+    background: none; border: none;
+    color: var(--text-subtle);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .remove-btn:hover { color: var(--brand); }
+
+  /* searchable dropdown */
+  .substance-picker { position: relative; flex: 1; }
+  .picker-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.92rem;
+    transition: border-color 0.15s;
+    min-height: 36px;
+  }
+  .picker-trigger:hover { border-color: var(--text-muted); }
+  .picker-trigger.open { border-color: var(--brand); }
+  .picker-trigger .chevron { font-size: 0.7rem; color: var(--text-subtle); margin-left: 8px; flex-shrink: 0; }
+  .picker-trigger .selected-name { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+  .picker-trigger .selected-name .name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .picker-trigger .placeholder { color: var(--text-subtle); }
+
+  .picker-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    box-shadow: var(--shadow-card);
+    z-index: 100;
+    max-height: 360px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .picker-search { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); }
+  .picker-search input {
+    border: none;
+    padding: 4px 0;
+    font-size: 0.88rem;
+    background: transparent;
+  }
+  .picker-search input:focus { border: none; outline: none; }
+  .picker-list { overflow-y: auto; flex: 1; }
+  .picker-group-header {
+    padding: 8px 12px 4px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-soft);
+    position: sticky;
+    top: 0;
+  }
+  .picker-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border-soft);
+    transition: background 0.1s;
+  }
+  .picker-option:hover { background: var(--bg-subtle); }
+  .picker-option .opt-main { display: flex; align-items: center; gap: 8px; }
+  .picker-option .opt-abbr { font-weight: 500; color: var(--text); }
+  .picker-option .opt-name { color: var(--text-muted); font-size: 0.82rem; margin-top: 1px; padding-left: 16px; }
+  .picker-option .opt-missing {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.75rem;
+    color: var(--text-subtle);
+    margin-left: auto;
+    font-style: italic;
+  }
+  .picker-empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-subtle);
+    font-size: 0.88rem;
+  }
+
+  .button-row { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+  button.btn {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 10px 18px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  button.btn:hover { border-color: var(--text-muted); background: var(--bg-subtle); }
+  button.btn.primary { background: var(--brand); color: white; border-color: var(--brand); }
+  button.btn.primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+  button.btn.subtle { color: var(--text-muted); }
+
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    padding: 40px 24px;
+    text-align: center;
+    transition: all 0.2s;
+    cursor: pointer;
+    background: var(--bg-subtle);
+  }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--brand); background: var(--brand-soft); }
+  .dropzone .icon { font-size: 1.8rem; margin-bottom: 8px; color: var(--text-muted); }
+  .dropzone .main-text { font-size: 0.95rem; font-weight: 500; margin-bottom: 4px; }
+  .dropzone .sub-text { font-size: 0.82rem; color: var(--text-muted); }
+  .dropzone .sub-text code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg-elevated);
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    font-size: 0.78rem;
+  }
+
+  .format-info {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: var(--bg-subtle);
+    border-radius: 5px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .format-info pre {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    background: var(--bg-elevated);
+    padding: 10px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    margin-top: 8px;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  .format-info a { color: var(--brand); text-decoration: none; border-bottom: 1px solid var(--brand-soft); }
+  .format-info a:hover { border-bottom-color: var(--brand); }
+
+  .ec10-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .ec10-table th, .ec10-table td {
+    padding: 7px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .ec10-table th {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    border-bottom-color: var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg-elevated);
+    z-index: 1;
+  }
+  .ec10-table td.numeric {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--text);
+    font-size: 0.82rem;
+  }
+  .ec10-table td.missing { color: var(--text-subtle); font-style: italic; }
+  .ec10-scroll {
+    max-height: 520px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+  }
+  .ec10-table tbody tr:hover { background: var(--bg-subtle); }
+  .ec10-table .cas { color: var(--text-subtle); font-family: 'IBM Plex Sans', sans-serif; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+
+  #results { display: none; margin-top: 28px; }
+  #results.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .results-header h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 1.7rem;
+    letter-spacing: -0.015em;
+  }
+  .results-header h2 em { font-style: italic; color: var(--text-muted); font-size: 0.85em; }
+
+  .plot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 880px) { .plot-grid { grid-template-columns: 1fr; } }
+
+  .plot-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow-soft);
+  }
+  .plot-card .plot-title { font-family: 'Fraunces', serif; font-weight: 500; font-size: 1rem; margin-bottom: 2px; }
+  .plot-card .plot-caption { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
+  .plot-card svg { width: 100%; height: auto; display: block; }
+
+  .legend {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+
+  .summary {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow-soft);
+    overflow-x: auto;
+  }
+  .summary table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .summary th, .summary td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-soft);
+    white-space: nowrap;
+  }
+  .summary th {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    border-bottom-color: var(--border);
+  }
+  .summary td.numeric { font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; text-align: right; font-size: 0.82rem; }
+  .summary td.missing { color: var(--text-subtle); font-style: italic; }
+  .summary tr.total-row td {
+    font-weight: 600;
+    border-top: 1.5px solid var(--text-muted);
+    border-bottom: none;
+    padding-top: 12px;
+  }
+  .summary tr.total-row td.numeric { color: var(--brand); }
+
+  .references {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow-soft);
+    margin-top: 20px;
+  }
+  .references .card-title { margin-bottom: 14px; }
+  .ref-entry {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--text);
+    padding-left: 28px;
+    text-indent: -28px;
+    margin-bottom: 10px;
+  }
+  .ref-entry:last-child { margin-bottom: 0; }
+  .ref-entry em { color: var(--text-muted); }
+  .ref-entry a {
+    color: var(--brand);
+    text-decoration: none;
+    border-bottom: 1px solid var(--brand-soft);
+    word-break: break-all;
+  }
+  .ref-entry a:hover { border-bottom-color: var(--brand); }
+
+  .alert {
+    padding: 12px 16px;
+    border-radius: 5px;
+    font-size: 0.88rem;
+    margin-bottom: 12px;
+    border-left: 3px solid;
+  }
+  .alert.warning { background: var(--mmp-soft); border-left-color: var(--mmp-color); color: #6E4F33; }
+  .alert.info { background: var(--era-soft); border-left-color: var(--era-color); color: #4A3D5C; }
+  .alert ul { margin: 6px 0 0 16px; }
+  .alert ul li { margin-bottom: 2px; }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--text-subtle);
+    line-height: 1.7;
+  }
+  footer a { color: var(--text-muted); text-decoration: none; border-bottom: 1px dotted var(--text-subtle); }
+  footer a:hover { color: var(--text); }
+
+  .micro {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.72rem;
+    color: var(--text-subtle);
+  }
+
+  details { margin-top: 4px; }
+  details summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    padding: 4px 0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  details summary::before { content: "▸"; font-size: 0.7rem; transition: transform 0.15s; color: var(--text-subtle); }
+  details[open] summary::before { transform: rotate(90deg); }
+  details summary:hover { color: var(--text); }
+  details .details-body { padding: 14px 0 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="title-block">
+      <h1>BPA-EQ Calculator</h1>
+      <p class="subtitle">Convert mixture exposure concentrations into BPA-equivalents (BPA-EQ) across three in vitro endpoints. Identify mixture drivers under the Concentration Addition framework.</p>
+    </div>
+    <div class="meta">
+      <div class="version">v 0.2 — 10 substances</div>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="manual"><span class="num">01</span> Manual entry</button>
+    <button class="tab" data-panel="upload"><span class="num">02</span> Upload file</button>
+    <button class="tab" data-panel="reference"><span class="num">03</span> EC₁₀ reference</button>
+  </div>
+
+  <section class="panel active" id="panel-manual">
+    <div class="card">
+      <div class="card-title">Enter mixture composition</div>
+      <p class="card-subtitle">Add one row per bisphenol present in your sample. Choose a concentration unit per row — molar conversion happens automatically.</p>
+
+      <table class="mixture-table" id="mixture-table">
+        <thead>
+          <tr>
+            <th>Substance</th>
+            <th>Concentration</th>
+            <th>Unit</th>
+            <th style="text-align:right;">nM</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="mixture-tbody"></tbody>
+      </table>
+
+      <div class="button-row">
+        <button class="btn" id="add-row-btn">+ Add substance</button>
+        <button class="btn primary" id="calc-btn">Calculate BPA-EQ</button>
+        <button class="btn subtle" id="example-btn">Load example mixture</button>
+        <button class="btn subtle" id="clear-btn">Clear all</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-upload">
+    <div class="card">
+      <div class="card-title">Upload sample file</div>
+      <p class="card-subtitle">CSV or XLSX. Required columns: Substance (abbreviation), Concentration, Unit.</p>
+
+      <div class="dropzone" id="dropzone">
+        <div class="icon">↑</div>
+        <div class="main-text">Drop your file here or click to browse</div>
+        <div class="sub-text">Accepts <code>.csv</code> · <code>.xlsx</code> · <code>.xls</code></div>
+        <input type="file" id="file-input" accept=".csv,.xlsx,.xls" style="display:none">
+      </div>
+
+      <div class="format-info">
+        Expected format — three columns, header row required:
+<pre>Substance,Concentration,Unit
+BPA,150,ng/L
+BPF,0.4,µg/L
+BPS,3.2e-9,M</pre>
+        Substance column uses the short abbreviation (BPA, BPF, BPS, TBBPA, BPAF, …). Accepted units: ng/L, µg/L, mg/L, M, mM, µM, nM, pM.
+        <br><br>
+        <a href="#" id="download-template">↓ Download CSV template</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-reference">
+    <div class="card">
+      <div class="card-title">EC₁₀ reference values — 10 bisphenol analogues</div>
+      <p class="card-subtitle">In vitro EC₁₀ values used to calculate Relative Effect Potencies (REP) versus BPA. Values shown in molar units (M). These 10 substances have experimentally validated Concentration Addition behaviour.</p>
+
+      <div class="alert info">
+        Missing values indicate the substance was not active in that assay (no EC₁₀ derivable within tested range). The calculator <strong>ignores</strong> substances with missing values for the relevant endpoint and flags incomplete coverage in the results.
+      </div>
+
+      <div class="ec10-scroll">
+        <table class="ec10-table" id="ec10-table">
+          <thead>
+            <tr>
+              <th>Abbreviation</th>
+              <th>CAS</th>
+              <th class="numeric">MW (g/mol)</th>
+              <th class="numeric">EC₁₀ ERα (M)</th>
+              <th class="numeric">EC₁₀ MMP (M)</th>
+              <th class="numeric">EC₁₀ Cytotoxicity (M)</th>
+            </tr>
+          </thead>
+          <tbody id="ec10-tbody"></tbody>
+        </table>
+      </div>
+
+      <details style="margin-top:18px;">
+        <summary>Methods & assumptions</summary>
+        <div class="details-body" style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">
+          <p style="margin-bottom:8px;"><strong>Endpoints:</strong> ERα activation (estrogen receptor α reporter assay, specific endpoint); MMP (mitochondrial membrane potential disruption, mitotoxicity); Cytotoxicity (general cell viability, IC₁₀).</p>
+          <p style="margin-bottom:8px;"><strong>Calculation:</strong> Exposure concentrations in any unit are first converted to molar (M) using each substance's molecular weight. The relative effect potency REP<sub>i</sub> = EC₁₀<sub>BPA</sub> / EC₁₀<sub>i</sub> is dimensionless. BPA-EQ<sub>i</sub> = c<sub>i</sub>(molar) × REP<sub>i</sub>, expressed in molar BPA-equivalents, then multiplied by MW<sub>BPA</sub> (228.291 g/mol) to give ng/L predicted BPA-EQ.</p>
+          <p style="margin-bottom:8px;"><strong>Concentration addition</strong> is the underlying assumption — substances are assumed to act via the same mode of action within each endpoint. For endpoints where this assumption is weaker (e.g. cytotoxicity), interpret BPA-EQ as a screening estimate.</p>
+          <p><strong>Missing values</strong> mean no EC₁₀ could be derived in the tested concentration range for that assay. Such substances are dropped from the BPA-EQ sum for that endpoint, with a warning shown in the results.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="results-header">
+      <h2>Results <em>— mixture analysis</em></h2>
+      <button class="btn subtle" id="export-csv">↓ Export CSV</button>
+    </div>
+
+    <div id="alerts-area"></div>
+
+    <div class="plot-grid">
+      <div class="plot-card">
+        <div class="plot-title">Plot A — Total BPA-EQ per endpoint</div>
+        <p class="plot-caption">Sum of BPA-equivalents across all substances in the mixture.</p>
+        <div id="plot-a"></div>
+      </div>
+      <div class="plot-card">
+        <div class="plot-title">Plot B — Driver analysis</div>
+        <p class="plot-caption">Individual substance contributions to total BPA-EQ. Tall segments are the mixture drivers.</p>
+        <div id="plot-b"></div>
+        <div class="legend" id="plot-b-legend"></div>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="card-title" style="margin-bottom:14px;">Calculation breakdown</div>
+      <table id="summary-table">
+        <thead>
+          <tr>
+            <th>Substance</th>
+            <th class="numeric">c (input)</th>
+            <th class="numeric">c (nM)</th>
+            <th class="numeric">REP ERα</th>
+            <th class="numeric">BPA-EQ ERα<br><span class="micro" style="font-weight:400">ng/L</span></th>
+            <th class="numeric">REP MMP</th>
+            <th class="numeric">BPA-EQ MMP<br><span class="micro" style="font-weight:400">ng/L</span></th>
+            <th class="numeric">REP Cyto</th>
+            <th class="numeric">BPA-EQ Cyto<br><span class="micro" style="font-weight:400">ng/L</span></th>
+          </tr>
+        </thead>
+        <tbody id="summary-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="references">
+      <div class="card-title">References</div>
+      <p class="ref-entry">
+        Srebny, V., Henneberger, L., König, M., Huchthausen, J., Braasch, J., &amp; Escher, B. I. (2025). Beyond estrogenicity: A comparative assessment of bisphenol A and its alternatives in in vitro assays questions safety of replacements. <em>Environmental Science &amp; Technology</em>, 59(33), 17457–17470. <a href="https://doi.org/10.1021/acs.est.5c07018" target="_blank" rel="noopener">https://doi.org/10.1021/acs.est.5c07018</a>
+      </p>
+      <p class="ref-entry">
+        Srebny, V., Braun, G., Wojtysiak, N., &amp; Escher, B. I. (2026). Introducing BPA-equivalents: assessing mixture toxicity and substitution of BPA in environmental exposure scenarios. <em>Environmental Science: Processes &amp; Impacts</em>, 28(3), 779–792. <a href="https://doi.org/10.1039/d5em00802f" target="_blank" rel="noopener">https://doi.org/10.1039/d5em00802f</a>
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>How it works.</strong> Exposure concentrations are converted to molar units via each substance's molecular weight. The relative effect potency REP<sub>i</sub> = EC₁₀<sub>BPA</sub> / EC₁₀<sub>i</sub> (dimensionless, both in M) gives a BPA-equivalent molar concentration BPA-EQ<sub>i</sub> = c<sub>i</sub>(M) × REP<sub>i</sub>. Final BPA-EQ mass concentration: BPA-EQ<sub>i</sub> × MW<sub>BPA</sub> (228.291 g/mol). Total mixture BPA-EQ is the sum across substances, assuming concentration addition.</p>
+    <p style="margin-top:8px;">Screening-level mixture analysis. Not a substitute for full regulatory risk assessment.</p>
+  </footer>
+
+</div>
+
+<script>
+  // 27 substances. EC10/IC10 in molar (M). null = no value.
+  const SUBSTANCE_DB = [
+    { abbr: "BPA",     name: "Bisphenol A",       cas: "80-05-7",     mw: 228.291, era: 3.70e-07, mmp: 2.80e-05, cyto: 7.00e-05 },
+    { abbr: "BPF",     name: "Bisphenol F",       cas: "620-92-8",    mw: 200.23,  era: 9.95e-07, mmp: 1.65e-04, cyto: 4.09e-04 },
+    { abbr: "BPS",     name: "Bisphenol S",       cas: "80-09-1",     mw: 250.27,  era: 1.43e-06, mmp: 1.17e-04, cyto: 5.61e-04 },
+    { abbr: "BPAF",    name: "Bisphenol AF",      cas: "1478-61-1",   mw: 336.23,  era: 2.44e-08, mmp: 5.32e-06, cyto: 2.28e-05 },
+    { abbr: "BPAP",    name: "Bisphenol AP",      cas: "1571-75-1",   mw: 290.36,  era: 1.94e-07, mmp: 2.83e-05, cyto: 3.31e-05 },
+    { abbr: "BPB",     name: "Bisphenol B",       cas: "77-40-7",     mw: 242.318, era: 1.35e-07, mmp: 1.64e-05, cyto: 3.62e-05 },
+    { abbr: "BPE",     name: "Bisphenol E",       cas: "2081-08-5",   mw: 214.264, era: 4.01e-07, mmp: 3.21e-05, cyto: 7.91e-05 },
+    { abbr: "BPPH",    name: "Bisphenol PH",      cas: "24038-68-4",  mw: 380.487, era: null,     mmp: 1.96e-06, cyto: 8.02e-06 },
+    { abbr: "BPZ",     name: "Bisphenol Z",       cas: "843-55-0",    mw: 268.356, era: 4.43e-08, mmp: 2.21e-05, cyto: 5.28e-05 },
+    { abbr: "BPS-MAE", name: "Bisphenol S-MAE",   cas: "97042-18-7",  mw: 290.33,  era: 1.41e-05, mmp: 7.85e-05, cyto: 1.90e-04 }
+  ];
+
+  const SUBSTANCE_BY_ABBR = Object.fromEntries(SUBSTANCE_DB.map(s => [s.abbr, s]));
+  const COMMON_SUBSTANCES = ['BPA', 'BPF', 'BPS'];
+  const BPA = SUBSTANCE_BY_ABBR['BPA'];
+
+  const ENDPOINTS = [
+    { key: 'era',  label: 'ERα',          color: '#D62728' },
+    { key: 'mmp',  label: 'MMP',          color: '#2CA02C' },
+    { key: 'cyto', label: 'Cytotoxicity', color: '#1F77B4' }
+  ];
+
+  // Saturated, complementary palette — BPA red / BPF green / BPS blue as anchors
+  const SUBSTANCE_COLOR = {
+    'BPA':     '#D62728',  // red
+    'BPF':     '#2CA02C',  // green
+    'BPS':     '#1F77B4',  // blue
+    'BPAF':    '#FF7F0E',  // orange
+    'BPAP':    '#9467BD',  // purple
+    'BPB':     '#E377C2',  // pink
+    'BPE':     '#17BECF',  // cyan
+    'BPPH':    '#8C564B',  // brown
+    'BPZ':     '#BCBD22',  // olive/yellow-green
+    'BPS-MAE': '#7F3F8C'   // deep magenta
+  };
+
+  const UNITS = [
+    { value: 'ng/L', label: 'ng/L' },
+    { value: 'µg/L', label: 'µg/L' },
+    { value: 'mg/L', label: 'mg/L' },
+    { value: 'pM',   label: 'pM' },
+    { value: 'nM',   label: 'nM' },
+    { value: 'µM',   label: 'µM' },
+    { value: 'mM',   label: 'mM' },
+    { value: 'M',    label: 'M' }
+  ];
+
+  function toMolar(value, unit, mw) {
+    if (value == null || isNaN(value)) return null;
+    switch (unit) {
+      case 'ng/L': return value * 1e-9 / mw;
+      case 'µg/L': return value * 1e-6 / mw;
+      case 'mg/L': return value * 1e-3 / mw;
+      case 'pM':   return value * 1e-12;
+      case 'nM':   return value * 1e-9;
+      case 'µM':   return value * 1e-6;
+      case 'mM':   return value * 1e-3;
+      case 'M':    return value;
+      default:     return null;
+    }
+  }
+
+  function resolveColor(varStr) {
+    if (!varStr || typeof varStr !== 'string' || !varStr.startsWith('var(')) return varStr;
+    const name = varStr.slice(4, -1).trim();
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  let mixture = [];
+  let lastResults = null;
+  let openPickerIndex = null;
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+    });
+  });
+
+  function renderMixtureTable() {
+    const tbody = document.getElementById('mixture-tbody');
+    tbody.innerHTML = '';
+    if (mixture.length === 0) mixture.push({ abbr: null, conc: '', unit: 'ng/L' });
+
+    mixture.forEach((row, i) => {
+      const sub = row.abbr ? SUBSTANCE_BY_ABBR[row.abbr] : null;
+      const swatchColor = row.abbr ? SUBSTANCE_COLOR[row.abbr] : 'var(--text-subtle)';
+      const concMolar = (sub && row.conc !== '' && !isNaN(parseFloat(row.conc)))
+        ? toMolar(parseFloat(row.conc), row.unit, sub.mw) * 1e9
+        : null;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="substance-cell">
+            <span class="swatch" style="background:${swatchColor}"></span>
+            <div class="substance-picker">
+              <div class="picker-trigger" data-index="${i}">
+                <span class="selected-name">
+                  ${row.abbr
+                    ? `<strong>${row.abbr}</strong><span class="name-text" style="color:var(--text-muted);font-size:0.82rem;">— ${sub.name}</span>`
+                    : `<span class="placeholder">Select a substance…</span>`}
+                </span>
+                <span class="chevron">▼</span>
+              </div>
+            </div>
+          </div>
+        </td>
+        <td class="conc-cell">
+          <input type="number" data-index="${i}" class="conc-input" min="0" step="any" placeholder="0" value="${row.conc}">
+        </td>
+        <td class="unit-cell">
+          <select data-index="${i}" class="unit-select">
+            ${UNITS.map(u => `<option value="${u.value}" ${u.value===row.unit?'selected':''}>${u.label}</option>`).join('')}
+          </select>
+        </td>
+        <td class="molar-cell">${concMolar !== null ? fmtMolar(concMolar) : '—'}</td>
+        <td class="remove-cell">
+          <button class="remove-btn" data-index="${i}" title="Remove">×</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('mixture-tbody').addEventListener('click', (e) => {
+    const trigger = e.target.closest('.picker-trigger');
+    if (trigger) {
+      e.stopPropagation();
+      const i = +trigger.dataset.index;
+      openPicker(i, trigger);
+      return;
+    }
+    if (e.target.classList.contains('remove-btn')) {
+      const i = +e.target.dataset.index;
+      mixture.splice(i, 1);
+      if (mixture.length === 0) mixture.push({ abbr: null, conc: '', unit: 'ng/L' });
+      renderMixtureTable();
+    }
+  });
+
+  document.getElementById('mixture-tbody').addEventListener('change', (e) => {
+    const i = +e.target.dataset.index;
+    if (e.target.classList.contains('unit-select')) {
+      mixture[i].unit = e.target.value;
+      renderMixtureTable();
+    }
+  });
+
+  document.getElementById('mixture-tbody').addEventListener('input', (e) => {
+    if (e.target.classList.contains('conc-input')) {
+      const i = +e.target.dataset.index;
+      mixture[i].conc = e.target.value;
+      const tr = e.target.closest('tr');
+      const cell = tr.querySelector('.molar-cell');
+      const sub = mixture[i].abbr ? SUBSTANCE_BY_ABBR[mixture[i].abbr] : null;
+      if (sub && mixture[i].conc !== '' && !isNaN(parseFloat(mixture[i].conc))) {
+        const concMolar = toMolar(parseFloat(mixture[i].conc), mixture[i].unit, sub.mw) * 1e9;
+        cell.textContent = fmtMolar(concMolar);
+      } else {
+        cell.textContent = '—';
+      }
+    }
+  });
+
+  function openPicker(index, triggerEl) {
+    closePicker();
+    openPickerIndex = index;
+    triggerEl.classList.add('open');
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'picker-dropdown';
+    dropdown.id = 'active-picker-dropdown';
+    dropdown.innerHTML = `
+      <div class="picker-search">
+        <input type="text" id="picker-search-input" placeholder="Search by abbreviation, name, or CAS…" autocomplete="off">
+      </div>
+      <div class="picker-list" id="picker-list"></div>
+    `;
+    triggerEl.parentElement.appendChild(dropdown);
+
+    renderPickerList('');
+    const searchInput = document.getElementById('picker-search-input');
+    searchInput.focus();
+    searchInput.addEventListener('input', (e) => renderPickerList(e.target.value));
+    searchInput.addEventListener('click', (e) => e.stopPropagation());
+
+    setTimeout(() => document.addEventListener('click', outsideClickHandler), 0);
+  }
+
+  function outsideClickHandler(e) {
+    const dropdown = document.getElementById('active-picker-dropdown');
+    if (dropdown && !dropdown.contains(e.target) && !e.target.closest('.picker-trigger')) {
+      closePicker();
+    }
+  }
+
+  function closePicker() {
+    document.removeEventListener('click', outsideClickHandler);
+    const old = document.getElementById('active-picker-dropdown');
+    if (old) old.remove();
+    document.querySelectorAll('.picker-trigger.open').forEach(t => t.classList.remove('open'));
+    openPickerIndex = null;
+  }
+
+  function renderPickerList(query) {
+    const list = document.getElementById('picker-list');
+    if (!list) return;
+    const q = query.trim().toLowerCase();
+
+    const matches = (s) => !q || s.abbr.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.cas.toLowerCase().includes(q);
+
+    let html = '';
+    if (!q) {
+      const common = COMMON_SUBSTANCES.map(a => SUBSTANCE_BY_ABBR[a]).filter(Boolean);
+      const others = SUBSTANCE_DB
+        .filter(s => !COMMON_SUBSTANCES.includes(s.abbr))
+        .slice()
+        .sort((a, b) => a.abbr.localeCompare(b.abbr));
+      html += `<div class="picker-group-header">Common</div>`;
+      common.forEach(s => html += renderOption(s));
+      html += `<div class="picker-group-header">All ${SUBSTANCE_DB.length} substances</div>`;
+      others.forEach(s => html += renderOption(s));
+    } else {
+      const results = SUBSTANCE_DB.filter(matches).slice().sort((a, b) => a.abbr.localeCompare(b.abbr));
+      if (results.length === 0) {
+        html = `<div class="picker-empty">No substances match "${query}"</div>`;
+      } else {
+        results.forEach(s => html += renderOption(s));
+      }
+    }
+    list.innerHTML = html;
+
+    list.querySelectorAll('.picker-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const abbr = opt.dataset.abbr;
+        if (openPickerIndex !== null) {
+          mixture[openPickerIndex].abbr = abbr;
+          renderMixtureTable();
+        }
+        closePicker();
+      });
+    });
+  }
+
+  function renderOption(s) {
+    const missing = [];
+    if (s.era === null) missing.push('ERα');
+    if (s.mmp === null) missing.push('MMP');
+    if (s.cyto === null) missing.push('Cyto');
+    const missingTag = missing.length ? `<span class="opt-missing">no ${missing.join(', ')}</span>` : '';
+    return `
+      <div class="picker-option" data-abbr="${s.abbr}">
+        <div class="opt-main">
+          <span class="swatch" style="background:${SUBSTANCE_COLOR[s.abbr]}"></span>
+          <span class="opt-abbr">${s.abbr}</span>
+          ${missingTag}
+        </div>
+        <div class="opt-name">${s.name}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById('add-row-btn').addEventListener('click', () => {
+    mixture.push({ abbr: null, conc: '', unit: 'ng/L' });
+    renderMixtureTable();
+  });
+  document.getElementById('example-btn').addEventListener('click', () => {
+    mixture = [
+      { abbr: 'BPA',   conc: 150, unit: 'ng/L' },
+      { abbr: 'BPF',   conc: 80,  unit: 'ng/L' },
+      { abbr: 'BPS',   conc: 320, unit: 'ng/L' },
+      { abbr: 'BPAF',  conc: 12,  unit: 'ng/L' },
+      { abbr: 'TBBPA', conc: 45,  unit: 'ng/L' }
+    ];
+    renderMixtureTable();
+  });
+  document.getElementById('clear-btn').addEventListener('click', () => {
+    mixture = [];
+    renderMixtureTable();
+    document.getElementById('results').classList.remove('visible');
+  });
+  document.getElementById('calc-btn').addEventListener('click', () => calculate());
+
+  function renderEC10Table() {
+    const tbody = document.getElementById('ec10-tbody');
+    tbody.innerHTML = '';
+    SUBSTANCE_DB.slice().sort((a,b) => a.abbr.localeCompare(b.abbr)).forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="substance-cell">
+            <span class="swatch" style="background:${SUBSTANCE_COLOR[s.abbr]}"></span>
+            <span style="font-weight:500;">${s.abbr}</span>
+          </div>
+          <div style="color:var(--text-muted);font-size:0.78rem;padding-left:18px;">${s.name}</div>
+        </td>
+        <td class="cas">${s.cas}</td>
+        <td class="numeric">${s.mw.toFixed(3)}</td>
+        <td class="numeric ${s.era === null ? 'missing' : ''}">${s.era === null ? 'n/a' : fmtSci(s.era)}</td>
+        <td class="numeric ${s.mmp === null ? 'missing' : ''}">${s.mmp === null ? 'n/a' : fmtSci(s.mmp)}</td>
+        <td class="numeric ${s.cyto === null ? 'missing' : ''}">${s.cyto === null ? 'n/a' : fmtSci(s.cyto)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ===== upload =====
+  const dz = document.getElementById('dropzone');
+  const fi = document.getElementById('file-input');
+  dz.addEventListener('click', () => fi.click());
+  dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fi.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    if (ext === 'csv') {
+      reader.onload = (e) => parseCSVText(e.target.result);
+      reader.readAsText(file);
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const csv = XLSX.utils.sheet_to_csv(sheet);
+        parseCSVText(csv);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      alert('Unsupported file type. Please use .csv, .xlsx or .xls');
+    }
+  }
+
+  function parseCSVText(text) {
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: true });
+    const validAbbrs = new Set(SUBSTANCE_DB.map(s => s.abbr));
+    const validUnits = new Set(UNITS.map(u => u.value));
+    const newMixture = [];
+    const errors = [];
+
+    parsed.data.forEach((r, idx) => {
+      const sub  = (r.Substance || r.substance || '').toString().trim();
+      const conc = r.Concentration ?? r.concentration;
+      const unit = ((r.Unit || r.unit || 'ng/L') + '').trim();
+      if (!sub) return;
+      if (!validAbbrs.has(sub)) { errors.push(`Row ${idx+2}: unknown substance "${sub}"`); return; }
+      if (!validUnits.has(unit)) { errors.push(`Row ${idx+2}: unsupported unit "${unit}"`); return; }
+      const c = parseFloat(conc);
+      if (isNaN(c) || c < 0) { errors.push(`Row ${idx+2}: invalid concentration "${conc}"`); return; }
+      newMixture.push({ abbr: sub, conc: c, unit });
+    });
+
+    if (newMixture.length === 0) {
+      alert('No valid rows found.' + (errors.length ? '\n\n' + errors.slice(0,5).join('\n') : ''));
+      return;
+    }
+    if (errors.length > 0) {
+      alert(`Loaded ${newMixture.length} rows, skipped ${errors.length}:\n\n` + errors.slice(0,5).join('\n'));
+    }
+    mixture = newMixture;
+    renderMixtureTable();
+    document.querySelector('.tab[data-panel="manual"]').click();
+    calculate();
+  }
+
+  document.getElementById('download-template').addEventListener('click', (e) => {
+    e.preventDefault();
+    const csv = 'Substance,Concentration,Unit\nBPA,150,ng/L\nBPF,80,ng/L\nBPS,320,ng/L\nBPAF,12,ng/L\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bisphenol_mixture_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // ===== CALCULATION =====
+  function calculate() {
+    const validRows = mixture.filter(r => {
+      const c = parseFloat(r.conc);
+      return r.abbr && SUBSTANCE_BY_ABBR[r.abbr] && !isNaN(c) && c > 0;
+    });
+    if (validRows.length === 0) {
+      alert('Please select at least one substance and enter a positive concentration.');
+      return;
+    }
+
+    const breakdown = validRows.map(row => {
+      const sub = SUBSTANCE_BY_ABBR[row.abbr];
+      const inputConc = parseFloat(row.conc);
+      const concMolar = toMolar(inputConc, row.unit, sub.mw);
+
+      const rep = {}, beq = {}, missing = {};
+      ENDPOINTS.forEach(ep => {
+        const ec10_bpa = BPA[ep.key];
+        const ec10_i   = sub[ep.key];
+        if (ec10_i === null || ec10_bpa === null) {
+          rep[ep.key] = null; beq[ep.key] = null; missing[ep.key] = true;
+        } else {
+          rep[ep.key] = ec10_bpa / ec10_i;
+          const beqMolar = concMolar * rep[ep.key];
+          beq[ep.key] = beqMolar * BPA.mw * 1e9;   // mol/L * g/mol * 1e9 -> ng/L
+          missing[ep.key] = false;
+        }
+      });
+      return {
+        abbr: row.abbr,
+        name: sub.name,
+        inputConc, inputUnit: row.unit,
+        concMolar_nM: concMolar * 1e9,
+        rep, beq, missing
+      };
+    });
+
+    const totals = {};
+    const incompleteSubs = { era: [], mmp: [], cyto: [] };
+    ENDPOINTS.forEach(ep => {
+      let sum = 0;
+      breakdown.forEach(b => {
+        if (b.beq[ep.key] !== null) sum += b.beq[ep.key];
+        else incompleteSubs[ep.key].push(b.abbr);
+      });
+      totals[ep.key] = sum;
+    });
+
+    lastResults = { breakdown, totals, incompleteSubs };
+    renderResults();
+  }
+
+  function renderResults() {
+    document.getElementById('results').classList.add('visible');
+    const alertArea = document.getElementById('alerts-area');
+    let alertHtml = '';
+
+    const anyMissing = ENDPOINTS.some(ep => lastResults.incompleteSubs[ep.key].length > 0);
+    if (anyMissing) {
+      const items = ENDPOINTS
+        .filter(ep => lastResults.incompleteSubs[ep.key].length > 0)
+        .map(ep => `<li><strong>${ep.label}:</strong> ${lastResults.incompleteSubs[ep.key].join(', ')} — no EC₁₀ available, excluded from sum.</li>`)
+        .join('');
+      alertHtml += `<div class="alert warning"><strong>Incomplete coverage.</strong> Some substances lack EC₁₀ values for one or more endpoints:<ul>${items}</ul></div>`;
+    }
+
+    ENDPOINTS.forEach(ep => {
+      if (lastResults.totals[ep.key] === 0) return;
+      const sorted = lastResults.breakdown
+        .filter(b => b.beq[ep.key] !== null)
+        .slice()
+        .sort((a, b) => b.beq[ep.key] - a.beq[ep.key]);
+      if (sorted.length <= 1) return;
+      const top = sorted[0];
+      const share = top.beq[ep.key] / lastResults.totals[ep.key];
+      if (share > 0.6) {
+        alertHtml += `<div class="alert info"><strong>${ep.label} driver:</strong> ${top.abbr} accounts for ${(share*100).toFixed(0)}% of total BPA-EQ<sub>${ep.label}</sub>, despite ${sorted.length - 1} other substance${sorted.length > 2 ? 's' : ''} being present.</div>`;
+      }
+    });
+
+    alertArea.innerHTML = alertHtml;
+    renderPlotA();
+    renderPlotB();
+    renderSummaryTable();
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderPlotA() {
+    const W = 560, H = 380;
+    const ml = 90, mr = 24, mt = 28, mb = 48;
+    const pw = W - ml - mr, ph = H - mt - mb;
+    const totals = lastResults.totals;
+    const maxVal = Math.max(...ENDPOINTS.map(ep => totals[ep.key])) * 1.15 || 1;
+    const barW = pw / ENDPOINTS.length * 0.55;
+    const groupW = pw / ENDPOINTS.length;
+    const ticks = niceTicks(0, maxVal, 5);
+    const axisBlack = '#1F2421';
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, sans-serif">`;
+    ticks.forEach(t => {
+      const y = mt + ph - (t / maxVal) * ph;
+      svg += `<line x1="${ml}" y1="${y}" x2="${ml + pw}" y2="${y}" stroke="${resolveColor('var(--border-soft)')}" stroke-width="1"/>`;
+      svg += `<text x="${ml - 12}" y="${y}" text-anchor="end" dominant-baseline="central" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}">${fmtPlot(t)}</text>`;
+    });
+    svg += `<text x="${ml - 68}" y="${mt + ph/2}" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" text-anchor="middle" transform="rotate(-90 ${ml - 68} ${mt + ph/2})">predicted BPA-EQ (ng/L)</text>`;
+
+    ENDPOINTS.forEach((ep, i) => {
+      const x = ml + i * groupW + (groupW - barW) / 2;
+      const h = (totals[ep.key] / maxVal) * ph;
+      const y = mt + ph - h;
+      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${resolveColor(ep.color)}" rx="2"/>`;
+      svg += `<text x="${x + barW/2}" y="${y - 8}" text-anchor="middle" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" font-variant-numeric="tabular-nums">${fmtPlot(totals[ep.key])}</text>`;
+      svg += `<text x="${ml + i * groupW + groupW/2}" y="${mt + ph + 28}" text-anchor="middle" font-size="16" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" font-weight="500">${ep.label}</text>`;
+    });
+
+    // Closed frame around plot area
+    svg += `<rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="none" stroke="${axisBlack}" stroke-width="1.2"/>`;
+    svg += `</svg>`;
+    document.getElementById('plot-a').innerHTML = svg;
+  }
+
+  function renderPlotB() {
+    const W = 560, H = 380;
+    const ml = 90, mr = 24, mt = 28, mb = 48;
+    const pw = W - ml - mr, ph = H - mt - mb;
+    const { breakdown, totals } = lastResults;
+    const maxVal = Math.max(...ENDPOINTS.map(ep => totals[ep.key])) * 1.15 || 1;
+    const barW = pw / ENDPOINTS.length * 0.55;
+    const groupW = pw / ENDPOINTS.length;
+    const ticks = niceTicks(0, maxVal, 5);
+    const axisBlack = '#1F2421';
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, sans-serif">`;
+    ticks.forEach(t => {
+      const y = mt + ph - (t / maxVal) * ph;
+      svg += `<line x1="${ml}" y1="${y}" x2="${ml + pw}" y2="${y}" stroke="${resolveColor('var(--border-soft)')}" stroke-width="1"/>`;
+      svg += `<text x="${ml - 12}" y="${y}" text-anchor="end" dominant-baseline="central" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}">${fmtPlot(t)}</text>`;
+    });
+    svg += `<text x="${ml - 68}" y="${mt + ph/2}" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" text-anchor="middle" transform="rotate(-90 ${ml - 68} ${mt + ph/2})">predicted BPA-EQ (ng/L)</text>`;
+
+    ENDPOINTS.forEach((ep, i) => {
+      const x = ml + i * groupW + (groupW - barW) / 2;
+      let cumY = mt + ph;
+      const sortedBd = breakdown
+        .filter(b => b.beq[ep.key] !== null && b.beq[ep.key] > 0)
+        .slice()
+        .sort((a, b) => b.beq[ep.key] - a.beq[ep.key]);
+
+      sortedBd.forEach(b => {
+        const h = (b.beq[ep.key] / maxVal) * ph;
+        cumY -= h;
+        svg += `<rect x="${x}" y="${cumY}" width="${barW}" height="${h}" fill="${SUBSTANCE_COLOR[b.abbr]}"><title>${b.abbr} → ${ep.label}: ${fmtPlot(b.beq[ep.key])} ng/L (${(b.beq[ep.key]/totals[ep.key]*100).toFixed(1)}%)</title></rect>`;
+        if (h > 22) {
+          const pct = (b.beq[ep.key]/totals[ep.key]*100).toFixed(0);
+          svg += `<text x="${x + barW/2}" y="${cumY + h/2}" text-anchor="middle" dominant-baseline="central" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" font-weight="500" font-variant-numeric="tabular-nums">${pct}%</text>`;
+        }
+      });
+      svg += `<text x="${x + barW/2}" y="${mt + ph - (totals[ep.key] / maxVal) * ph - 8}" text-anchor="middle" font-size="15" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" font-variant-numeric="tabular-nums">${fmtPlot(totals[ep.key])}</text>`;
+      svg += `<text x="${ml + i * groupW + groupW/2}" y="${mt + ph + 28}" text-anchor="middle" font-size="16" font-family="IBM Plex Sans, sans-serif" fill="${axisBlack}" font-weight="500">${ep.label}</text>`;
+    });
+
+    // Closed frame around plot area
+    svg += `<rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="none" stroke="${axisBlack}" stroke-width="1.2"/>`;
+    svg += `</svg>`;
+    document.getElementById('plot-b').innerHTML = svg;
+
+    const presentSubs = [...new Set(breakdown.map(b => b.abbr))];
+    document.getElementById('plot-b-legend').innerHTML = presentSubs.map(abbr =>
+      `<div class="legend-item"><span class="legend-swatch" style="background:${SUBSTANCE_COLOR[abbr]}"></span>${abbr}</div>`
+    ).join('');
+  }
+
+  function renderSummaryTable() {
+    const tbody = document.getElementById('summary-tbody');
+    tbody.innerHTML = '';
+    lastResults.breakdown.forEach(b => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="substance-cell">
+            <span class="swatch" style="background:${SUBSTANCE_COLOR[b.abbr]}"></span>
+            <strong>${b.abbr}</strong>
+          </div>
+        </td>
+        <td class="numeric">${fmt(b.inputConc)} ${b.inputUnit}</td>
+        <td class="numeric">${fmtMolar(b.concMolar_nM)}</td>
+        <td class="numeric ${b.missing.era ? 'missing' : ''}">${b.rep.era === null ? 'n/a' : fmt(b.rep.era)}</td>
+        <td class="numeric ${b.missing.era ? 'missing' : ''}">${b.beq.era === null ? 'n/a' : fmtPlot(b.beq.era)}</td>
+        <td class="numeric ${b.missing.mmp ? 'missing' : ''}">${b.rep.mmp === null ? 'n/a' : fmt(b.rep.mmp)}</td>
+        <td class="numeric ${b.missing.mmp ? 'missing' : ''}">${b.beq.mmp === null ? 'n/a' : fmtPlot(b.beq.mmp)}</td>
+        <td class="numeric ${b.missing.cyto ? 'missing' : ''}">${b.rep.cyto === null ? 'n/a' : fmt(b.rep.cyto)}</td>
+        <td class="numeric ${b.missing.cyto ? 'missing' : ''}">${b.beq.cyto === null ? 'n/a' : fmtPlot(b.beq.cyto)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    const tr = document.createElement('tr');
+    tr.className = 'total-row';
+    tr.innerHTML = `
+      <td>Total BPA-EQ</td>
+      <td class="numeric">—</td>
+      <td class="numeric">—</td>
+      <td class="numeric">—</td>
+      <td class="numeric">${fmtPlot(lastResults.totals.era)}</td>
+      <td class="numeric">—</td>
+      <td class="numeric">${fmtPlot(lastResults.totals.mmp)}</td>
+      <td class="numeric">—</td>
+      <td class="numeric">${fmtPlot(lastResults.totals.cyto)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('export-csv').addEventListener('click', () => {
+    if (!lastResults) return;
+    let csv = 'Substance,InputConc,InputUnit,Conc_nM,REP_ERa,BPA-EQ_ERa_ngL,REP_MMP,BPA-EQ_MMP_ngL,REP_Cyto,BPA-EQ_Cyto_ngL\n';
+    lastResults.breakdown.forEach(b => {
+      const v = (x) => x === null ? '' : x;
+      csv += [b.abbr, b.inputConc, b.inputUnit, b.concMolar_nM, v(b.rep.era), v(b.beq.era), v(b.rep.mmp), v(b.beq.mmp), v(b.rep.cyto), v(b.beq.cyto)].join(',') + '\n';
+    });
+    csv += `Total,-,-,-,-,${lastResults.totals.era},-,${lastResults.totals.mmp},-,${lastResults.totals.cyto}\n`;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'beq_results.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  function fmt(n) {
+    if (n === null || n === undefined) return '—';
+    if (n === 0) return '0';
+    const abs = Math.abs(n);
+    if (abs >= 1000)  return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (abs >= 10)    return n.toFixed(1);
+    if (abs >= 0.1)   return n.toFixed(2);
+    if (abs >= 0.01)  return n.toFixed(3);
+    return n.toExponential(2);
+  }
+  function fmtPlot(n) {
+    if (n === 0) return '0';
+    const abs = Math.abs(n);
+    if (abs >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (abs >= 0.1)  return n.toFixed(1);
+    return n.toExponential(1);
+  }
+  function fmtSci(n) {
+    if (n === null) return 'n/a';
+    return n.toExponential(2);
+  }
+  function fmtMolar(nM) {
+    if (nM === null || nM === undefined || isNaN(nM)) return '—';
+    if (nM === 0) return '0';
+    const abs = Math.abs(nM);
+    if (abs >= 1000) return (nM/1000).toFixed(2) + ' µM';
+    if (abs >= 1)    return nM.toFixed(2) + ' nM';
+    if (abs >= 0.001) return (nM*1000).toFixed(1) + ' pM';
+    return nM.toExponential(1) + ' nM';
+  }
+  function niceTicks(min, max, count) {
+    const range = max - min;
+    if (range === 0) return [0];
+    const roughStep = range / count;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const normalized = roughStep / magnitude;
+    let step;
+    if      (normalized < 1.5) step = 1;
+    else if (normalized < 3)   step = 2;
+    else if (normalized < 7)   step = 5;
+    else                       step = 10;
+    step *= magnitude;
+    const niceMin = Math.floor(min / step) * step;
+    const niceMax = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let v = niceMin; v <= niceMax + step*0.001; v += step) ticks.push(v);
+    return ticks;
+  }
+
+  renderMixtureTable();
+  renderEC10Table();
+</script>
+
+</body>
+</html>
